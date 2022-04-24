@@ -37,8 +37,19 @@ a20f16505a61   zabbix/zabbix-server-mysql:alpine-5.4-latest      "/sbin/tini -- 
 7. Wait until the availability parameter of your host will change its status to "Available", from red indicator to green.
 
 ## How to destroy:
+Run docker compose down & wait until all the containers and networks are removed
 ```bash
 docker-compose -f docker-compose.yaml down
+
+Stopping zabbix-web-nginx-mysql ... done
+Stopping agent                  ... done
+Stopping zabbix-server-mysql    ... done
+Stopping mysql-server           ... done
+Removing zabbix-web-nginx-mysql ... done
+Removing agent                  ... done
+Removing zabbix-server-mysql    ... done
+Removing mysql-server           ... done
+Removing network zabbix-net
 ```
 ## Variables
       - MYSQL_PASSWORD=zabbix_pwd
