@@ -1,0 +1,97 @@
+version: '3.5'
+networks:
+  zabbix-net:
+    name: zabbix-net
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16
+       # - ip-range: 172.20.240.0/20
+services:
+  mysql-server:
+    image: mysql:8.0
+    environment:
+      - MYSQL_PASSWORD=zabbix_pwd
+      - MYSQL_USER=zabbix
+      - MYSQL_DATABASE=zabbix
+      - MYSQL_ROOT_PASSWORD=root_pwd
+    networks:
+      - zabbix-net
+    volumes:
+      - /var/lib/mysql:/var/lib/mysql:rw
+    command: ['mysqld', '--character-set-server=utf8', '--collation-server=utf8_bin',
+              '--default-authentication-plugin=mysql_native_password']
+    healthcheck:
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  zabbix-server-mysql:
+    image: zabbix/zabbix-server-mysql:alpine-5.4-latest
+    networks: 
+      - zabbix-net
+    ports:
+      - "10051:10051"
+    restart: unless-stopped
+    depends_on:
+      - mysql-server
+    environment:
+      - DB_SERVER_HOST=mysql-server
+      - MYSQL_DATABASE=zabbix
+      - MYSQL_USER=zabbix
+      - MYSQL_PASSWORD=zabbix_pwd 
+      - MYSQL_ROOT_PASSWORD=root_pwd
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+      - /usr/lib/zabbix/alertscripts:/usr/lib/zabbix/alertscripts:ro
+      - /usr/lib/zabbix/externalscripts:/usr/lib/zabbix/externalscripts:ro
+      - /var/lib/zabbix/export:/var/lib/zabbix/export:rw
+      - /var/lib/zabbix/modules:/var/lib/zabbix/modules:ro
+      - /var/lib/zabbix/enc:/var/lib/zabbix/enc:ro
+      - /var/lib/zabbix/ssh_keys:/var/lib/zabbix/ssh_keys:ro
+      - /var/lib/zabbix/mibs:/var/lib/zabbix/mibs:ro
+      - /var/lib/zabbix/snmptraps:/var/lib/zabbix/snmptraps:ro
+
+  zabbix-web-nginx-mysql:
+    image: zabbix/zabbix-web-nginx-mysql:alpine-5.4-latest
+    ports:
+      - "80:8080"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/ssl/nginx:/etc/ssl/nginx:ro
+      - /usr/share/zabbix/modules/:/usr/share/zabbix/modules/:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    networks: 
+      - zabbix-net
+    depends_on:
+      - zabbix-server-mysql
+      - mysql-server
+    environment:
+      - ZBX_SERVER_HOST=zabbix-server-mysql
+      - DB_SERVER_HOST=mysql-server
+      - MYSQL_USER=zabbix
+      - MYSQL_PASSWORD=zabbix_pwd
+      - MYSQL_DATABASE=zabbix
+      - MYSQL_ROOT_PASSWORD=root_pwd
+  agent:
+    image: zabbix/zabbix-agent:alpine-latest
+    ports:
+      - "10050:10050"
+    restart: always
+    depends_on:
+      - zabbix-server-mysql
+    networks: 
+      - zabbix-net
+    environment:
+      - ZBX_SERVER_HOST=zabbix-server-mysql
+
+
